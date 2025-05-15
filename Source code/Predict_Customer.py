@@ -1,92 +1,106 @@
+import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from xgboost import XGBClassifier
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
-from google.colab import files
 
-# Upload dataset
-uploaded = files.upload()
-df = pd.read_csv(list(uploaded.keys())[0])
-print(f"Initial rows: {len(df)}")
+# Streamlit page config
+st.set_page_config(page_title="Churn Prediction App", layout="wide")
+st.title("🔍 Customer Churn Prediction Dashboard")
 
-# Drop non-informative columns
-df.drop(['RowNumber', 'CustomerId', 'Surname'], axis=1, inplace=True)
+# File uploader
+uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 
-# --- Visualization 1: Churn Distribution ---
-plt.figure(figsize=(6, 4))
-sns.countplot(x='Exited', data=df)
-plt.title('Churn Distribution')
-plt.xlabel('Exited (Churn)')
-plt.ylabel('Count')
-plt.show()
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+    st.success(f"Dataset uploaded. Rows: {len(df)}")
 
-# --- Visualization 2: Boxplot of Age by Churn ---
-plt.figure(figsize=(6, 4))
-sns.boxplot(x='Exited', y='Age', data=df)
-plt.title('Age by Churn')
-plt.show()
+    # Drop non-informative columns
+    df.drop(['RowNumber', 'CustomerId', 'Surname'], axis=1, inplace=True)
 
-# --- Visualization 3: Correlation Heatmap (numerical features only) ---
-plt.figure(figsize=(10, 8))
-sns.heatmap(df.select_dtypes(include=[np.number]).corr(), annot=True, fmt=".2f", cmap='coolwarm')
-plt.title('Correlation Matrix')
-plt.show()
+    # --- Visualization 1: Churn Distribution ---
+    st.subheader("Churn Distribution")
+    fig1, ax1 = plt.subplots()
+    sns.countplot(x='Exited', data=df, ax=ax1)
+    ax1.set_title('Churn Distribution')
+    st.pyplot(fig1)
 
-# Encode categorical variables: Geography and Gender
-df = pd.get_dummies(df, columns=['Geography', 'Gender'], drop_first=True)
+    # --- Visualization 2: Age by Churn ---
+    st.subheader("Age Distribution by Churn")
+    fig2, ax2 = plt.subplots()
+    sns.boxplot(x='Exited', y='Age', data=df, ax=ax2)
+    ax2.set_title('Age by Churn')
+    st.pyplot(fig2)
 
-# Define features and target
-X = df.drop('Exited', axis=1)
-y = df['Exited']
+    # --- Visualization 3: Correlation Heatmap ---
+    st.subheader("Correlation Matrix")
+    fig3, ax3 = plt.subplots(figsize=(10, 8))
+    sns.heatmap(df.select_dtypes(include=[np.number]).corr(), annot=True, fmt=".2f", cmap='coolwarm', ax=ax3)
+    st.pyplot(fig3)
 
-# Train-test split
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    # Encoding categorical variables
+    df = pd.get_dummies(df, columns=['Geography', 'Gender'], drop_first=True)
 
-# Feature scaling
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
-X_test = scaler.transform(X_test)
+    # Features and target
+    X = df.drop('Exited', axis=1)
+    y = df['Exited']
 
-# Define models
-models = {
-    "Logistic Regression": LogisticRegression(max_iter=1000),
-    "Random Forest": RandomForestClassifier(n_estimators=100),
-    "XGBoost": XGBClassifier(eval_metric='logloss')
-}
+    # Train-test split
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Train and evaluate models
-for name, model in models.items():
-    print(f"\n{name} Results")
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-    print("Accuracy:", accuracy_score(y_test, y_pred))
-    print(confusion_matrix(y_test, y_pred))
-    print(classification_report(y_test, y_pred))
+    # Feature scaling
+    scaler = StandardScaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
 
-    # --- Visualization 4: Confusion Matrix ---
-    plt.figure(figsize=(4, 3))
-    sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt="d", cmap='Blues')
-    plt.title(f'Confusion Matrix: {name}')
-    plt.xlabel('Predicted')
-    plt.ylabel('Actual')
-    plt.show()
+    # Model selection
+    st.sidebar.header("Choose a Model")
+    model_name = st.sidebar.selectbox("Model", ["Logistic Regression", "Random Forest", "XGBoost"])
 
-# Feature importance from Random Forest
-rf_model = models["Random Forest"]
-importances = rf_model.feature_importances_
-features = X.columns
-importance_df = pd.DataFrame({'Feature': features, 'Importance': importances})
-importance_df.sort_values(by='Importance', ascending=False, inplace=True)
+    # Model definitions
+    models = {
+        "Logistic Regression": LogisticRegression(max_iter=1000),
+        "Random Forest": RandomForestClassifier(n_estimators=100),
+        "XGBoost": XGBClassifier(eval_metric='logloss')
+    }
 
-# --- Visualization 5: Feature Importance ---
-plt.figure(figsize=(10, 6))
-sns.barplot(data=importance_df.head(15), x='Importance', y='Feature')
-plt.title('Top 15 Important Features - Random Forest')
-plt.tight_layout()
-plt.show()
+    if st.sidebar.button("Train and Evaluate"):
+        model = models[model_name]
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+
+        # Evaluation
+        st.subheader(f"{model_name} Results")
+        acc = accuracy_score(y_test, y_pred)
+        st.write(f"**Accuracy:** {acc:.2f}")
+        st.text("Classification Report")
+        st.text(classification_report(y_test, y_pred))
+
+        # Confusion matrix
+        fig4, ax4 = plt.subplots()
+        sns.heatmap(confusion_matrix(y_test, y_pred), annot=True, fmt="d", cmap='Blues', ax=ax4)
+        ax4.set_title(f'Confusion Matrix: {model_name}')
+        ax4.set_xlabel('Predicted')
+        ax4.set_ylabel('Actual')
+        st.pyplot(fig4)
+
+        # Feature importance for Random Forest
+        if model_name == "Random Forest":
+            importances = model.feature_importances_
+            features = X.columns
+            importance_df = pd.DataFrame({'Feature': features, 'Importance': importances})
+            importance_df.sort_values(by='Importance', ascending=False, inplace=True)
+
+            # --- Visualization 5: Feature Importance ---
+            st.subheader("Top 15 Important Features - Random Forest")
+            fig5, ax5 = plt.subplots(figsize=(10, 6))
+            sns.barplot(data=importance_df.head(15), x='Importance', y='Feature', ax=ax5)
+            st.pyplot(fig5)
+
