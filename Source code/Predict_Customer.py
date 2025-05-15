@@ -16,7 +16,7 @@ st.set_page_config(page_title="Churn Prediction App", layout="wide")
 st.title("🔍 Customer Churn Prediction Dashboard")
 
 # File uploader
-uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
+uploaded_file = st.file_uploader("Upload your CSV file", type=["Predict_Customer_Churn.csv"])
 
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
